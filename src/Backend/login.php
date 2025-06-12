@@ -1,35 +1,36 @@
 <?php
+require_once("db.php");
+session_start();
 header("Content-Type: application/json");
-$data = json_decode(file_get_contents("php://input"));
 
-$mysqli = new mysqli("localhost", "root", "", "Job");
+if ($_SERVER["REQUEST_METHOD"] === "POST") {
+    $data = json_decode(file_get_contents("php://input"), true);
 
-if ($mysqli->connect_error) {
-    echo json_encode(["message" => "Database connection failed"]);
-    exit();
-}
+    $Email = mysqli_real_escape_string($conn, $data['email']);
+    $Password = $data['password'];
 
-$email = $data->email ?? '';
-$password = $data->password ?? '';
-$role = $data->role ?? '';
+    $sql = "SELECT id, name, email_address, password, role FROM users WHERE email_address = '$Email' LIMIT 1";
+    $result = mysqli_query($conn, $sql);
 
-$table = $role === 'admin' ? 'admin' : ($role === 'organization' ? 'organisation' : 'users');
+    if ($result && mysqli_num_rows($result) === 1) {
+        $user = mysqli_fetch_assoc($result);
 
-$stmt = $mysqli->prepare("SELECT * FROM $table WHERE email = ?");
-$stmt->bind_param("s", $email);
-$stmt->execute();
-$result = $stmt->get_result();
+        if (password_verify($Password, $user['password'])) {
+            // Set session variables
+            $_SESSION['id'] = $user['id'];
+            $_SESSION['name'] = $user['name'];
+            $_SESSION['role'] = $user['role'];
 
-if ($user = $result->fetch_assoc()) {
-    if (password_verify($password, $user['password'])) {
-        echo json_encode(["message" => "Login successful"]);
+            echo json_encode([
+                "success" => true,
+                "message" => "Login successful",
+                "role" => $user['role']
+            ]);
+        } else {
+            echo json_encode(["success" => false, "message" => "Incorrect password"]);
+        }
     } else {
-        echo json_encode(["message" => "Incorrect password"]);
+        echo json_encode(["success" => false, "message" => "User not found"]);
     }
-} else {
-    echo json_encode(["message" => "User not found"]);
 }
-
-$stmt->close();
-$mysqli->close();
 ?>

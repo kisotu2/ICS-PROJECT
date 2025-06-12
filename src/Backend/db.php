@@ -1,12 +1,14 @@
 <?php
 $servername = "localhost";
-$username = "root";
-$password = "";
-$db = "Job";
+$username = "root";  // or your DB username
+$password = "";      // or your DB password
+$dbname = "job";     // your database name
 
-$conn = new mysqli($servername,$username,$password,$db);
+// Create connection
+$conn = new mysqli($servername, $username, $password, $dbname);
 
-if($conn->connect_error){
-    die ("Connection Failed!!" . $conn->connect_error);
+// Check connection
+if ($conn->connect_error) {
+    die("Connection failed: " . $conn->connect_error);
 }
 ?>
