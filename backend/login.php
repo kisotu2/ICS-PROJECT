@@ -15,7 +15,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
     if (empty($errors)) {
         $roles = [
-            'admin' => 'admin_dashboard.php',
+            'admin' => 'dashboards/admin_dashboard.php',
             'users' => 'dashboards/users_dashboard.php',
             'organisation' => 'dashboards/organisation_dashboard.php'
         ];
