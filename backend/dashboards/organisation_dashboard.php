@@ -98,9 +98,9 @@ $viewed_seekers = $conn->query("SELECT COUNT(DISTINCT jobseeker_id) as count FRO
     <h2><?= htmlspecialchars($org_name) ?></h2>
 
     <a href="organisation_dashboard.php"><button>Dashboard</button></a>
-    <a href="./backend/talent_pool.php"><button>Talent Pool</button></a>
-    <a href="./backend/interviews.php"><button>Interviews</button></a>
-    <a href="./backend/profile.php"><button>Profile</button></a>
+    <a href="./talent_pool.php"><button>Talent Pool</button></a>
+    <a href="./interviews.php"><button>Interviews</button></a>
+    <a href="./profile.php"><button>Profile</button></a>
 
     <a class="logout" href="../logout.php">Logout</a>
 </div>

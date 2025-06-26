@@ -6,7 +6,7 @@ error_reporting(E_ALL);
 session_start();
 require_once '../db.php';
 
-// Redirect if not logged in
+// Check if job seeker is logged in
 if (!isset($_SESSION['user_id'])) {
     header("Location: ../login.php");
     exit();
@@ -21,56 +21,154 @@ $query->execute();
 $query->bind_result($name, $email, $cv, $passport, $documents);
 $query->fetch();
 $query->close();
+
+// Fetch organisations that showed interest
+$interestResult = null;
+try {
+    $interestQuery = $conn->prepare("
+        SELECT i.id AS interest_id, o.name AS org_name, o.email AS org_email, i.status
+        FROM interests i
+        JOIN organisation o ON i.organisation_id = o.id
+        WHERE i.jobseeker_id = ?
+    ");
+    $interestQuery->bind_param("i", $userId);
+    $interestQuery->execute();
+    $interestResult = $interestQuery->get_result();
+} catch (Exception $e) {
+    echo "Error fetching interests: " . $e->getMessage();
+}
 ?>
 
 <!DOCTYPE html>
 <html>
+    <div class="container">
 <head>
     <title>Job Seeker Dashboard</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            padding: 20px;
-            background: #f9f9f9;
-        }
+    html, body {
+        height: 100%;
+        margin: 0;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        background: #f2f6fc;
+    }
 
-        h2 {
-            color: #333;
-        }
+    body {
+        display: flex;
+        justify-content: center;
+        align-items: flex-start; /* Change to center if you want vertical centering too */
+        padding: 40px 0;
+    }
 
-        .profile-info {
-            margin-bottom: 20px;
-            padding: 15px;
-            background: #fff;
-            border-radius: 10px;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-        }
+    .container {
+        width: 90%;
+        max-width: 950px;
+        padding: 20px;
+    }
 
-        .profile-info img {
-            max-height: 100px;
-            border-radius: 8px;
-        }
+    header {
+        background: #1e88e5;
+        color: #fff;
+        padding: 20px 40px;
+        text-align: center;
+        border-radius: 10px 10px 0 0;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    }
 
-        label {
-            font-weight: bold;
-            display: block;
-            margin-top: 15px;
-        }
+    .card {
+        background: #fff;
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 30px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    }
 
-        input[type="file"], button {
-            margin-top: 10px;
-        }
+    h2, h3 {
+        color: #333;
+    }
 
-        .doc-list {
-            margin-top: 10px;
-        }
+    .profile-info img {
+        max-height: 120px;
+        border-radius: 8px;
+        margin-top: 10px;
+    }
 
-        a.logout {
-            display: inline-block;
-            margin-top: 20px;
-            color: #007bff;
-        }
-    </style>
+    label {
+        font-weight: bold;
+    }
+
+    .doc-list {
+        padding-left: 20px;
+        margin-top: 10px;
+    }
+
+    .doc-list li {
+        margin-bottom: 6px;
+    }
+
+    form {
+        margin-top: 10px;
+    }
+
+    input[type="file"] {
+        display: block;
+        margin-top: 10px;
+    }
+
+    button {
+        background: #1e88e5;
+        color: white;
+        border: none;
+        padding: 8px 16px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-weight: bold;
+        margin-top: 10px;
+    }
+
+    button:hover {
+        background: #1669bb;
+    }
+
+    .interest-box {
+        border: 1px solid #d0d0d0;
+        border-left: 5px solid #1e88e5;
+        padding: 15px;
+        border-radius: 10px;
+        margin-top: 15px;
+        background-color: #ffffff;
+    }
+
+    .interest-box form {
+        display: inline-block;
+        margin-right: 10px;
+    }
+
+    .logout {
+        color: #1e88e5;
+        text-decoration: none;
+        font-weight: bold;
+        display: inline-block;
+        margin-top: 20px;
+    }
+
+    .logout:hover {
+        text-decoration: underline;
+    }
+
+    .status {
+        font-style: italic;
+        color: #555;
+    }
+
+    .button-red {
+        background-color: #e53935;
+    }
+
+    .button-red:hover {
+        background-color: #c62828;
+    }
+</style>
+
 </head>
 <body>
 
@@ -92,7 +190,9 @@ $query->close();
         <p><strong>Other Documents:</strong></p>
         <ul class="doc-list">
             <?php foreach (explode(',', $documents) as $doc): ?>
-                <li><a href="../uploads/<?= htmlspecialchars(trim($doc)) ?>" target="_blank"><?= htmlspecialchars(trim($doc)) ?></a></li>
+                <?php if (trim($doc)): ?>
+                    <li><a href="../uploads/<?= htmlspecialchars(trim($doc)) ?>" target="_blank"><?= htmlspecialchars(trim($doc)) ?></a></li>
+                <?php endif; ?>
             <?php endforeach; ?>
         </ul>
     <?php endif; ?>
@@ -104,7 +204,33 @@ $query->close();
     <button type="submit">Upload</button>
 </form>
 
+<!-- Interests Section -->
+<?php if ($interestResult && $interestResult->num_rows > 0): ?>
+    <h3>Organisations Interested in You</h3>
+    <?php while ($row = $interestResult->fetch_assoc()): ?>
+        <div class="interest-box">
+            <strong>Organisation:</strong> <?= htmlspecialchars($row['org_name']) ?><br>
+            <strong>Email:</strong> <?= htmlspecialchars($row['org_email']) ?><br>
+            <strong>Status:</strong> <span class="status"><?= htmlspecialchars($row['status']) ?></span><br>
+
+            <?php if ($row['status'] === 'pending'): ?>
+                <form method="GET" action="respond_interest.php">
+                    <input type="hidden" name="interest_id" value="<?= $row['interest_id'] ?>">
+                    <input type="hidden" name="action" value="approve">
+                    <button type="submit">Approve</button>
+                </form>
+                <form method="GET" action="respond_interest.php">
+                    <input type="hidden" name="interest_id" value="<?= $row['interest_id'] ?>">
+                    <input type="hidden" name="action" value="reject">
+                    <button type="submit">Decline</button>
+                </form>
+            <?php endif; ?>
+        </div>
+    <?php endwhile; ?>
+<?php endif; ?>
+
 <a class="logout" href="../logout.php">Logout</a>
 
 </body>
+</div>
 </html>
