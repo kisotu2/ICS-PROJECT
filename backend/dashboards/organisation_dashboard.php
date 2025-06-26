@@ -141,7 +141,9 @@ $viewed_seekers = $conn->query("SELECT COUNT(DISTINCT jobseeker_id) as count FRO
                         <?php endif; ?>
                         <form method="POST" action="show_interest.php">
                             <input type="hidden" name="jobseeker_id" value="<?= $row['id'] ?>">
-                            <button type="submit">Show Interest</button>
+                            <a href="show_interest.php?id=<?= $row['id'] ?>">
+    <button type="button">Show Interest</button>
+</a>
                         </form>
                     </div>
                 <?php endwhile;

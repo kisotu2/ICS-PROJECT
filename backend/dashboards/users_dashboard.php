@@ -1,27 +1,46 @@
 <?php
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
-error_reporting(E_ALL);
-
-session_start();
-require_once '../db.php';
-
-// Redirect if not logged in
-if (!isset($_SESSION['user_id'])) {
-    header("Location: ../talent_pool.php");
-    exit();
-}
-
-$userId = $_SESSION['user_id'];
-
-// Fetch user details
-$query = $conn->prepare("SELECT name, email, cv, passport, documents FROM users WHERE id = ?");
-$query->bind_param("i", $userId);
-$query->execute();
-$query->bind_result($name, $email, $cv, $passport, $documents);
-$query->fetch();
-$query->close();
+// Fetch organisations that showed interest
+$interestQuery = $conn->prepare("
+    SELECT i.id AS interest_id, o.name AS org_name, o.email AS org_email, i.status
+    FROM interests i
+    JOIN organisation o ON i.organisation_id = o.id
+    WHERE i.jobseeker_id = ?
+");
+$interestQuery->bind_param("i", $userId);
+$interestQuery->execute();
+$interestResult = $interestQuery->get_result();
 ?>
+
+<h3>Organisations Interested in You</h3>
+
+<?php if ($interestResult->num_rows > 0): ?>
+    <table border="1" cellpadding="10" cellspacing="0">
+        <tr>
+            <th>Organisation Name</th>
+            <th>Email</th>
+            <th>Status</th>
+            <th>Actions</th>
+        </tr>
+        <?php while ($interest = $interestResult->fetch_assoc()): ?>
+            <tr>
+                <td><?= htmlspecialchars($interest['org_name']) ?></td>
+                <td><?= htmlspecialchars($interest['org_email']) ?></td>
+                <td><?= htmlspecialchars(ucfirst($interest['status'])) ?></td>
+                <td>
+                    <?php if ($interest['status'] === 'pending'): ?>
+                        <a href="respond_interest.php?id=<?= $interest['interest_id'] ?>&action=approve">Approve</a> |
+                        <a href="respond_interest.php?id=<?= $interest['interest_id'] ?>&action=decline">Decline</a>
+                    <?php else: ?>
+                        <em>No actions available</em>
+                    <?php endif; ?>
+                </td>
+            </tr>
+        <?php endwhile; ?>
+    </table>
+<?php else: ?>
+    <p>No organisations have shown interest yet.</p>
+<?php endif; ?>
+
 
 <!DOCTYPE html>
 <html>
