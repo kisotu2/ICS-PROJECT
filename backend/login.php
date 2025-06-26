@@ -15,25 +15,35 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
     if (empty($errors)) {
         $roles = [
-            'admin' => 'dashboards/admin_dashboard.php',
+            'admin' => 'admin_dashboard.php',
             'users' => 'dashboards/users_dashboard.php',
             'organisation' => 'dashboards/organisation_dashboard.php'
         ];
-
-        $found = false;
-
+    
         foreach ($roles as $table => $redirect) {
             $stmt = $conn->prepare("SELECT id, name, password FROM `$table` WHERE email = ?");
             $stmt->bind_param("s", $email);
             $stmt->execute();
             $stmt->store_result();
-
+    
             if ($stmt->num_rows === 1) {
                 $stmt->bind_result($id, $name, $hashed);
                 $stmt->fetch();
-
+    
                 if (password_verify($password, $hashed)) {
-                    $_SESSION['user_id'] = $id;
+                    // ✅ Set role-based session
+                    switch ($table) {
+                        case 'admin':
+                            $_SESSION['admin_id'] = $id;
+                            break;
+                        case 'users':
+                            $_SESSION['user_id'] = $id;
+                            break;
+                        case 'organisation':
+                            $_SESSION['org_id'] = $id;
+                            break;
+                    }
+    
                     $_SESSION['name'] = $name;
                     $_SESSION['role'] = $table;
                     header("Location: $redirect");
@@ -43,14 +53,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     break;
                 }
             }
-
+    
             $stmt->close();
         }
-
-        if (!$found && empty($errors)) {
+    
+        if (empty($errors)) {
             $errors[] = "Email not found.";
         }
     }
+    
 
     if (isset($conn)) $conn->close();
 }
