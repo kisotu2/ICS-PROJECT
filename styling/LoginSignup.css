@@ -1,0 +1,116 @@
+body {
+    margin: 0;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: #f0f2f5;
+  }
+  
+  .container {
+    width: 400px;
+    background-color: #fff;
+    padding: 40px 30px;
+    margin: 80px auto;
+    border-radius: 12px;
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+  }
+  
+  .header {
+    text-align: center;
+    margin-bottom: 30px;
+  }
+  
+  .text {
+    font-size: 28px;
+    font-weight: 700;
+    color: #333;
+  }
+  
+  .underline {
+    height: 4px;
+    width: 50px;
+    background-color: #3498db;
+    margin: 8px auto;
+    border-radius: 5px;
+  }
+  
+  .Inputs {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+  
+  .input {
+    display: flex;
+    align-items: center;
+    background-color: #f2f2f2;
+    border-radius: 8px;
+    padding: 12px 15px;
+  }
+  
+  .input img {
+    width: 20px;
+    margin-right: 10px;
+  }
+  
+  .input input {
+    width: 100%;
+    border: none;
+    outline: none;
+    background: none;
+    font-size: 16px;
+  }
+  
+  .forgot-password {
+    text-align: right;
+    margin-top: 10px;
+    font-size: 14px;
+    color: #555;
+  }
+  
+  .forgot-password span {
+    color: #3498db;
+    cursor: pointer;
+  }
+  
+  .submit-container {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 30px;
+  }
+  
+  .submit {
+    flex: 1;
+    background-color: #3498db;
+    color: #fff;
+    padding: 12px;
+    text-align: center;
+    margin: 0 5px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: background 0.3s;
+  }
+  
+  .submit:hover {
+    background-color: #2980b9;
+  }
+  
+  .submit.gray {
+    background-color: #ccc;
+    color: #333;
+  }
+  
+  @media screen and (max-width: 450px) {
+    .container {
+      width: 90%;
+      padding: 30px 20px;
+    }
+  
+    .text {
+      font-size: 24px;
+    }
+  
+    .submit {
+      padding: 10px;
+      font-size: 14px;
+    }
+  }
