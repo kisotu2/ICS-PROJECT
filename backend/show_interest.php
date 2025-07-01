@@ -8,33 +8,55 @@ if (!isset($_SESSION['org_id'])) {
 }
 
 $org_id = $_SESSION['org_id'];
-$jobseeker_id = $_GET['id'] ?? null;
+$jobseeker_id = isset($_GET['jobseeker_id']) ? intval($_GET['jobseeker_id']) : 0;
+$message = '';
 
-if (!$jobseeker_id) {
-    die("Invalid job seeker.");
-}
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $jobseeker_id = intval($_POST['jobseeker_id']);
+    $job_title = trim($_POST['job_title']);
+    $job_description = trim($_POST['job_description']);
 
-// Check if already interested
-$check = $conn->prepare("SELECT * FROM interests WHERE organisation_id = ? AND jobseeker_id = ?");
-$check->bind_param("ii", $org_id, $jobseeker_id);
-$check->execute();
-$result = $check->get_result();
-$existing = $result->fetch_assoc();
+    if ($jobseeker_id && $job_title !== '' && $job_description !== '') {
+        $stmt = $conn->prepare("INSERT INTO interests (organisation_id, jobseeker_id, job_title, job_description) VALUES (?, ?, ?, ?)");
+        $stmt->bind_param("iiss", $org_id, $jobseeker_id, $job_title, $job_description);
+        $stmt->execute();
+        $interest_id = $conn->insert_id;
+        $stmt->close();
 
-if (!$existing) {
-    // Insert new interest
-    $insert = $conn->prepare("INSERT INTO interests (organisation_id, jobseeker_id, status, notified) VALUES (?, ?, 'pending', 0)");
-    $insert->bind_param("ii", $org_id, $jobseeker_id);
-    if ($insert->execute()) {
-        echo "Interest shown successfully. Waiting for job seeker's approval.";
+        if ($interest_id) {
+            $message = "Interest sent successfully!";
+
+            $notifStmt = $conn->prepare("INSERT INTO notifications (user_id, organisation_id, interest_id, message) VALUES (?, ?, ?, ?)");
+            $notifMessage = "An organisation has shown interest in your profile for the role: $job_title";
+            $notifStmt->bind_param("iiis", $jobseeker_id, $org_id, $interest_id, $notifMessage);
+            $notifStmt->execute();
+            $notifStmt->close();
+        } else {
+            $message = "Failed to send interest.";
+        }
     } else {
-        echo "Error showing interest.";
+        $message = "Please fill all fields.";
     }
-    $insert->close();
-} else {
-    echo "You have already shown interest. Current status: <strong>" . htmlspecialchars($existing['status']) . "</strong>";
 }
-
-$check->close();
 ?>
-<a href="organisation_dashboard.php">← Back to Dashboard</a>
+
+<h2>Send Interest to Job Seeker</h2>
+
+<?php if ($message): ?>
+    <p><?= htmlspecialchars($message) ?></p>
+<?php endif; ?>
+
+<form method="POST">
+    <input type="hidden" name="jobseeker_id" value="<?= htmlspecialchars($jobseeker_id) ?>">
+
+    <p><strong>Job Seeker ID:</strong> <?= htmlspecialchars($jobseeker_id) ?></p>
+
+    <label>Job Title:</label><br>
+    <input type="text" name="job_title" required><br><br>
+
+    <label>Job Description:</label><br>
+    <textarea name="job_description" rows="5" required></textarea><br><br>
+
+    <button type="submit">Send Interest</button>
+    <a href="jobseeker_list.php">Cancel</a>
+</form>
