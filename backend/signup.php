@@ -3,6 +3,7 @@ ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
+session_start();
 require_once 'db.php';
 
 $errors = [];
@@ -29,7 +30,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $table = 'users';
     } elseif ($user_type === 'organisation') {
         $table = 'organisation';
-    }else {
+    } else {
         $errors[] = "Invalid user type selected.";
     }
 
@@ -53,6 +54,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $stmt->bind_param("sss", $name, $email, $hashed);
 
         if ($stmt->execute()) {
+            // Store user info in session after signup!
+            $_SESSION['user_id'] = $stmt->insert_id;
+            $_SESSION['name'] = $name;
+            $_SESSION['role'] = $table;
+
             if ($user_type === 'jobseeker') {
                 header("Location: dashboards/users_dashboard.php");
             } elseif ($user_type === 'organisation') {
@@ -65,12 +71,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
         $stmt->close();
     }
-
-    if (isset($conn)) $conn->close();
 }
 ?>
+
 <style>
-    /* Reset some default styles */
+/* Your existing CSS styling unchanged */
 * {
     box-sizing: border-box;
     margin: 0;
@@ -86,7 +91,6 @@ body {
     height: 100vh;
 }
 
-/* Form container */
 form {
     background: #ffffff;
     padding: 30px 40px;
@@ -96,14 +100,12 @@ form {
     max-width: 400px;
 }
 
-/* Heading */
 form h2 {
     margin-bottom: 20px;
     text-align: center;
     color: #333;
 }
 
-/* Input fields and select */
 form input[type="text"],
 form input[type="email"],
 form input[type="password"],
@@ -122,7 +124,6 @@ form select:focus {
     outline: none;
 }
 
-/* Button styling */
 form button {
     width: 100%;
     padding: 12px;
@@ -139,7 +140,6 @@ form button:hover {
     background-color: #0056b3;
 }
 
-/* Link under the form */
 form a {
     display: block;
     text-align: center;
@@ -153,7 +153,6 @@ form a:hover {
     text-decoration: underline;
 }
 
-/* Error list */
 form ul {
     margin-bottom: 15px;
     list-style: none;
@@ -164,8 +163,8 @@ form ul li {
     color: red;
     font-size: 14px;
 }
-
 </style>
+
 <form method="POST">
     <h2>Sign Up</h2>
 

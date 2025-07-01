@@ -36,8 +36,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     $_SESSION['user_id'] = $id;
                     $_SESSION['name'] = $name;
                     $_SESSION['role'] = $table;
+
+                    
+    if ($table === 'organisation') {
+        $_SESSION['org_id'] = $id;  // set org_id session here
+    }
                     header("Location: $redirect");
                     exit();
+
                 } else {
                     $errors[] = "Incorrect password.";
                     break;
