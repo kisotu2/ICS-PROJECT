@@ -70,6 +70,7 @@ if (!empty($interests)) {
 
 <!DOCTYPE html>
 <html>
+    <div class="container">
 <head>
     <title>Job Seeker Dashboard</title>
     <style>
