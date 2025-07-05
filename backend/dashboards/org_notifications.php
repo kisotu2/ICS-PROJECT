@@ -4,14 +4,12 @@ ini_set('display_errors', 1);
 error_reporting(E_ALL);
 require_once '../db.php';
 
-if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'organisation') {
-    header("Location: ../login.php");
-    exit();
-}
+// Remove login/role check here
 
-$orgId = $_SESSION['user_id'];
+// Use orgId from session if available, else set null (you may want to hardcode or handle differently)
+$orgId = $_SESSION['organization_id'] ?? null;
 
-// Fetch notifications for this organisation where the interest status is accepted or rejected
+
 $stmt = $conn->prepare("
     SELECT n.notification_id, n.message, n.status, n.created_at, n.interest_id, u.name AS jobseeker_name, i.status AS interest_status
     FROM notifications n
@@ -21,6 +19,8 @@ $stmt = $conn->prepare("
       AND i.status IN ('accepted', 'rejected')
     ORDER BY n.created_at DESC
 ");
+
+// If $orgId is null, this query may fail or return nothing. Handle accordingly if needed.
 $stmt->bind_param("i", $orgId);
 $stmt->execute();
 $result = $stmt->get_result();
@@ -68,10 +68,10 @@ $stmt->close();
             <p class="date"><?= htmlspecialchars($note['created_at']) ?></p>
 
             <?php if ($note['interest_status'] === 'accepted'): ?>
-    <a href="manage_slots.php?organisation_id=<?= urlencode($orgId) ?>" class="btn-schedule">
-        Manage Interview Slots
-    </a>
-<?php endif; ?>
+                <a href="manage_slots.php?organisation_id=<?= urlencode($orgId) ?>" class="btn-schedule">
+                    Manage Interview Slots
+                </a>
+            <?php endif; ?>
         </div>
     <?php endforeach; ?>
 <?php endif; ?>

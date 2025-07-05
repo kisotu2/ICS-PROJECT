@@ -1,147 +1,145 @@
 <?php
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+
 session_start();
 require_once '../db.php';
 
-// Check organisation login
-if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'organisation') {
-    header("Location: ../login.php");
-    exit();
+if (empty($_SESSION['org_id']) || ($_SESSION['role'] ?? '') !== 'organisation') {
+    die("Access denied. Please login as an organization user.");
 }
 
-$orgId = $_SESSION['user_id'];
-?>
+$user_id = $_SESSION['org_id'];
+$org_id = $_SESSION['organization_id'] ?? null;
 
+function loadOrganization($conn, $org_id) {
+    if (!$org_id) return null;
+    $stmt = $conn->prepare("SELECT * FROM organizations WHERE id = ?");
+    $stmt->bind_param("i", $org_id);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    return $result->fetch_assoc();
+}
+
+$organization = loadOrganization($conn, $org_id);
+
+if (!$organization && $org_id) {
+    unset($_SESSION['organization_id']);
+    $org_id = null;
+    $organization = null;
+}
+
+// Fetch available interview slots
+$stmt = $conn->prepare("SELECT * FROM interview_slots WHERE organisation_id = ? ORDER BY interview_date ASC");
+$stmt->bind_param("i", $org_id);
+$stmt->execute();
+$result = $stmt->get_result();
+$slots = $result->fetch_all(MYSQLI_ASSOC);
+$stmt->close();
+
+// Form submission handling
+$message = '';
+if (isset($_POST['assign'])) {
+    $slot_id = (int)$_POST['slot_id'];
+    $interest_id = (int)$_POST['interest_id'];
+    $jobseeker_id = (int)$_POST['jobseeker_id'];
+
+    // Mark slot as booked
+    $conn->query("UPDATE interview_slots SET is_booked = 1 WHERE slot_id = $slot_id");
+
+    // Insert interview
+    $stmt = $conn->prepare("INSERT INTO interviews (interest_id, organisation_id, jobseeker_id, status, date, created_at) VALUES (?, ?, ?, 'scheduled', (SELECT interview_date FROM interview_slots WHERE slot_id = ?), NOW())");
+    $stmt->bind_param("iiii", $interest_id, $org_id, $jobseeker_id, $slot_id);
+    $stmt->execute();
+
+    $message = "Interview slot assigned successfully!";
+}
+
+$jobseeker_id = $_GET['jobseeker_id'] ?? null;
+$interest_id = $_GET['interest_id'] ?? null;
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <title>Manage Interview Slots</title>
-
-    <!-- FullCalendar v6 global build (includes timeGrid) -->
-    <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.css" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
-
-    <!-- jQuery -->
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-
     <style>
         body {
-            font-family: Arial, sans-serif;
+            margin: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f4f6fa;
+            color: #2c3e50;
+            display: flex;
+        }
+        .main-content {
+            margin-left: 240px;
+            padding: 40px;
+            flex-grow: 1;
+        }
+        h2 {
+            color: #003366;
+        }
+        .message {
+            padding: 10px;
+            background-color: #d4edda;
+            color: #155724;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        form {
+            background: white;
             padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+            max-width: 500px;
         }
-        #calendar {
-            max-width: 900px;
-            margin: 40px auto;
+        select, button {
+            padding: 10px;
+            width: 100%;
+            margin-top: 10px;
+            font-size: 16px;
+            border-radius: 6px;
         }
-        .back-link {
-            display: block;
-            margin-top: 20px;
-            font-weight: bold;
-            color: #007bff;
-            text-decoration: none;
+        button {
+            background: #0047AB;
+            color: white;
+            border: none;
+        }
+        button:hover {
+            background: #002f6c;
         }
     </style>
 </head>
 <body>
+<?php include 'org_sidebar.php'; ?>
+<div class="main-content">
+    <h2>Manage Interview Slots</h2>
 
-<h2>Manage Available Interview Slots</h2>
-<div id="calendar"></div>
+    <?php if (!empty($message)): ?>
+        <div class="message"> <?= htmlspecialchars($message) ?> </div>
+    <?php endif; ?>
 
-<script>
-document.addEventListener('DOMContentLoaded', function () {
-    var calendarEl = document.getElementById('calendar');
-
-    var calendar = new FullCalendar.Calendar(calendarEl, {
-        initialView: 'timeGridWeek',
-        slotMinTime: "08:00:00",
-        slotMaxTime: "18:00:00",
-        allDaySlot: false,
-        selectable: true,
-        editable: true,
-
-        events: {
-            url: 'fetch_slots_org.php',
-            method: 'POST',
-            extraParams: {
-                organisation_id: <?= json_encode($orgId) ?>
-            }
-        },
-
-        select: function (info) {
-            let title = prompt('Enter slot title (e.g. Interview Slot)');
-            if (title) {
-                $.post('add_slot_ajax.php', {
-                    organisation_id: <?= json_encode($orgId) ?>,
-                    slot_date: info.startStr.substring(0, 10),
-                    slot_start: info.startStr.substring(11, 19),
-                    slot_end: info.endStr.substring(11, 19),
-                    title: title
-                }, function (response) {
-                    if (response.success) {
-                        calendar.refetchEvents();
-                        alert('Slot added successfully.');
-                    } else {
-                        alert('Error: ' + response.message);
-                    }
-                }, 'json');
-            }
-            calendar.unselect();
-        },
-
-        eventClick: function (info) {
-            if (info.event.extendedProps.isBooked) {
-                alert("This slot is already booked and cannot be edited or deleted.");
-                return;
-            }
-
-            let choice = prompt("Type 'delete' to remove this slot or enter a new title to edit:", info.event.title);
-            if (choice === null) return;
-
-            if (choice.toLowerCase() === 'delete') {
-                if (confirm('Delete this slot?')) {
-                    $.post('delete_slot_ajax.php', {
-                        slot_id: info.event.id
-                    }, function (response) {
-                        if (response.success) {
-                            calendar.refetchEvents();
-                            alert('Slot deleted.');
-                        } else {
-                            alert('Error: ' + response.message);
-                        }
-                    }, 'json');
-                }
-            } else {
-                alert('Editing slot titles is not implemented yet.');
-            }
-        },
-
-        eventDrop: function (info) {
-            if (info.event.extendedProps.isBooked) {
-                alert("Cannot move booked slots.");
-                info.revert();
-                return;
-            }
-
-            $.post('update_slot_ajax.php', {
-                slot_id: info.event.id,
-                slot_date: info.event.startStr.substring(0, 10),
-                slot_start: info.event.startStr.substring(11, 19),
-                slot_end: info.event.endStr.substring(11, 19)
-            }, function (response) {
-                if (!response.success) {
-                    alert('Error: ' + response.message);
-                    info.revert();
-                }
-            }, 'json');
-        }
-    });
-
-    calendar.render();
-});
-
-</script>
-
-<a href="organisation_dashboard.php" class="back-link">← Back to Dashboard</a>
-
+    <?php if ($jobseeker_id && $interest_id): ?>
+        <h3>Assign Slot to Job Seeker</h3>
+        <form method="POST">
+            <input type="hidden" name="jobseeker_id" value="<?= (int)$jobseeker_id ?>">
+            <input type="hidden" name="interest_id" value="<?= (int)$interest_id ?>">
+            <label>Select an available slot:</label>
+            <select name="slot_id" required>
+                <?php foreach ($slots as $slot): ?>
+                    <?php if (!$slot['is_booked']): ?>
+                        <option value="<?= $slot['slot_id'] ?>">
+                            <?= date('F j, Y \a\t H:i', strtotime($slot['interview_date'])) ?>
+                        </option>
+                    <?php endif; ?>
+                <?php endforeach; ?>
+            </select>
+            <button type="submit" name="assign">Assign Slot</button>
+        </form>
+    <?php else: ?>
+        <p>Please select a job seeker from the interview scheduling page.</p>
+    <?php endif; ?>
+</div>
 </body>
 </html>

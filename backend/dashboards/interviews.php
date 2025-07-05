@@ -1,100 +1,137 @@
 <?php
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+
 session_start();
-if (!isset($_SESSION['org_id'])) {
-    header("Location: ../login.php");
-    exit();
-}
-$org_id = $_SESSION['org_id'];
+require_once '../db.php';
 
-$conn = new mysqli('localhost', 'root', '', 'jobseekers');
-if ($conn->connect_error) {
-    die("Connection failed: " . $conn->connect_error);
+// Access control
+if (empty($_SESSION['org_id']) || ($_SESSION['role'] ?? '') !== 'organisation') {
+    die("Access denied. Please login as an organization user.");
 }
 
-// Handle approval
-if (isset($_POST['approve'])) {
-    $interview_id = (int)$_POST['interview_id'];
-    $conn->query("UPDATE interviews SET status = 'approved' WHERE id = $interview_id");
+$user_id = $_SESSION['org_id'];
+$org_id = $_SESSION['organization_id'] ?? null;
+
+function loadOrganization($conn, $org_id) {
+    if (!$org_id) return null;
+    $stmt = $conn->prepare("SELECT * FROM organizations WHERE id = ?");
+    $stmt->bind_param("i", $org_id);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    return $result->fetch_assoc();
 }
 
-// Fetch interview categories
-$pending   = $conn->query("SELECT * FROM interviews WHERE organisation_id = $org_id AND status = 'pending'");
-$approved  = $conn->query("SELECT * FROM interviews WHERE organisation_id = $org_id AND status = 'approved'");
-$passed    = $conn->query("SELECT * FROM interviews WHERE organisation_id = $org_id AND status = 'passed'");
+$organization = loadOrganization($conn, $org_id);
+
+if (!$organization && $org_id) {
+    unset($_SESSION['organization_id']);
+    $org_id = null;
+    $organization = null;
+}
+
+// Fetch job seekers who accepted offers
+$stmt = $conn->prepare("SELECT i.id AS interest_id, u.id AS user_id, u.name, u.headline, u.skills, u.passport, i.job_title, i.job_description 
+                        FROM interests i 
+                        JOIN users u ON i.jobseeker_id = u.id 
+                        WHERE i.organisation_id = ? AND i.status = 'accepted' 
+                        ORDER BY i.created_at DESC");
+$stmt->bind_param("i", $user_id);
+$stmt->execute();
+$result = $stmt->get_result();
+$acceptedSeekers = $result->fetch_all(MYSQLI_ASSOC);
+$stmt->close();
 ?>
-
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Interview Status</title>
+    <meta charset="UTF-8">
+    <title>Accepted Job Seekers</title>
     <style>
         body {
-            font-family: Arial, sans-serif;
+            margin: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f4f6fa;
+            color: #2c3e50;
+            display: flex;
+        }
+
+        .main-content {
+            margin-left: 240px;
+            padding: 40px;
+            flex-grow: 1;
+        }
+
+        .card {
+            background: #fff;
+            border-radius: 10px;
             padding: 20px;
-            background: #f7f7f7;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
         }
 
         h2 {
-            color: #333;
-            margin-top: 40px;
+            margin-top: 0;
+            color: #003366;
         }
 
-        .interview-box {
-            background: #fff;
-            padding: 15px;
-            margin-bottom: 15px;
-            border-left: 5px solid;
+        img.passport {
+            max-height: 80px;
             border-radius: 8px;
+            margin-bottom: 10px;
         }
 
-        .pending { border-color: orange; }
-        .approved { border-color: green; }
-        .passed { border-color: blue; }
+        .btn {
+            padding: 10px 16px;
+            background: #0047AB;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            margin-top: 12px;
+            font-weight: bold;
+        }
+
+        .btn:hover {
+            background: #002f6c;
+        }
+
+        @media (max-width: 768px) {
+            .main-content {
+                margin-left: 0;
+                padding: 20px;
+            }
+        }
     </style>
 </head>
 <body>
 
-<h2>Pending Interviews</h2>
-<?php if ($pending && $pending->num_rows > 0): ?>
-    <?php while ($row = $pending->fetch_assoc()): ?>
-        <div class="interview-box pending">
-            <strong>Job Seeker ID:</strong> <?= htmlspecialchars($row['jobseeker_id']) ?><br>
-            <strong>Date:</strong> <?= htmlspecialchars($row['date']) ?><br>
-            <form method="POST">
-                <input type="hidden" name="interview_id" value="<?= $row['id'] ?>">
-                <button type="submit" name="approve">Approve</button>
-            </form>
-        </div>
-    <?php endwhile; ?>
-<?php else: ?>
-    <p>No pending interviews.</p>
-<?php endif; ?>
+<?php include 'org_sidebar.php'; ?> <!-- ✅ Correct sidebar for org -->
 
+<div class="main-content">
+    <h2>Job Seekers Who Accepted Offers</h2>
 
-<h2>Approved Interviews</h2>
-<?php if ($approved && $approved->num_rows > 0): ?>
-    <?php while ($row = $approved->fetch_assoc()): ?>
-        <div class="interview-box approved">
-            <strong>Job Seeker ID:</strong> <?= htmlspecialchars($row['jobseeker_id']) ?><br>
-            <strong>Date:</strong> <?= htmlspecialchars($row['date']) ?><br>
-        </div>
-    <?php endwhile; ?>
-<?php else: ?>
-    <p>No approved interviews.</p>
-<?php endif; ?>
-
-
-<h2>Passed Interviews</h2>
-<?php if ($passed && $passed->num_rows > 0): ?>
-    <?php while ($row = $passed->fetch_assoc()): ?>
-        <div class="interview-box passed">
-            <strong>Job Seeker ID:</strong> <?= htmlspecialchars($row['jobseeker_id']) ?><br>
-            <strong>Date:</strong> <?= htmlspecialchars($row['date']) ?><br>
-        </div>
-    <?php endwhile; ?>
-<?php else: ?>
-    <p>No passed interviews.</p>
-<?php endif; ?>
+    <?php if (empty($acceptedSeekers)): ?>
+        <p>No job seekers have accepted your offers yet.</p>
+    <?php else: ?>
+        <?php foreach ($acceptedSeekers as $seeker): ?>
+            <div class="card">
+                <?php if (!empty($seeker['passport'])): ?>
+                    <img src="../../<?= htmlspecialchars($seeker['passport']) ?>" alt="Passport Photo" class="passport">
+                <?php endif; ?>
+                <h3><?= htmlspecialchars($seeker['name']) ?></h3>
+                <p><strong>Headline:</strong> <?= htmlspecialchars($seeker['headline']) ?></p>
+                <p><strong>Skills:</strong> <?= htmlspecialchars($seeker['skills']) ?></p>
+                <p><strong>Job Title:</strong> <?= htmlspecialchars($seeker['job_title']) ?></p>
+                <p><strong>Description:</strong><br><?= nl2br(htmlspecialchars($seeker['job_description'])) ?></p>
+                <a class="btn" href="manage_slots.php?jobseeker_id=<?= $seeker['user_id'] ?>&interest_id=<?= $seeker['interest_id'] ?>">Schedule Interview</a>
+            </div>
+        <?php endforeach; ?>
+    <?php endif; ?>
+</div>
 
 </body>
 </html>

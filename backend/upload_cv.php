@@ -41,7 +41,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['cv'])) {
         $stmt = $conn->prepare("UPDATE users SET cv = ? WHERE id = ?");
         $stmt->bind_param("si", $dbFile, $userId);
         if ($stmt->execute()) {
-            header("Location: users_dashboard.php");
+            header("Location: edit_profile.php");
             exit();
         } else {
             die("Database update failed: " . $stmt->error);

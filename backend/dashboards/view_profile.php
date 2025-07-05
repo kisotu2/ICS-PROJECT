@@ -208,7 +208,7 @@ function getFullFilePath($relativePath) {
     </div>
 </div>
 
-<?php if (isset($_SESSION['org_id'])): ?>
+
     <form method="POST" action="">
         <h2>Show Interest</h2>
 
@@ -225,9 +225,7 @@ function getFullFilePath($relativePath) {
 
         <button type="submit">Send Interest</button>
     </form>
-<?php else: ?>
-    <p style="text-align:center;">Please <a href="../login.php">login</a> as an organisation to show interest.</p>
-<?php endif; ?>
+
 
 </body>
 </html>

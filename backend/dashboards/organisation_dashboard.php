@@ -2,21 +2,25 @@
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
-
 session_start();
-$org_id = $_SESSION['org_id'] ?? 1;
 
+$org_id = $_SESSION['org_id'] ?? 1;
 $conn = new mysqli('localhost', 'root', '', 'jobseekers');
 if ($conn->connect_error) {
     die("Connection failed: " . $conn->connect_error);
 }
 
 $search = $_GET['search'] ?? '';
+$experienceLevel = $_GET['experience_level'] ?? '';
+
 $sql = "
-    SELECT id, name, email, cv, passport, headline, skills, experience, education
+    SELECT id, name, email, cv, passport, headline, skills, experience, education, industry
     FROM users
-    WHERE name LIKE ? 
-    AND name IS NOT NULL 
+    WHERE (
+        skills LIKE ? OR
+        headline LIKE ? OR
+        experience LIKE ?
+    )
     AND headline IS NOT NULL 
     AND skills IS NOT NULL 
     AND experience IS NOT NULL 
@@ -24,242 +28,206 @@ $sql = "
     AND cv IS NOT NULL 
     AND passport IS NOT NULL
 ";
+
+if (!empty($experienceLevel)) {
+    $sql .= " AND experience_level = ?";
+}
+
 $stmt = $conn->prepare($sql);
 $like = "%$search%";
-$stmt->bind_param("s", $like);
+
+if (!empty($experienceLevel)) {
+    $stmt->bind_param("ssss", $like, $like, $like, $experienceLevel);
+} else {
+    $stmt->bind_param("sss", $like, $like, $like);
+}
+
 $stmt->execute();
 $result = $stmt->get_result();
+
+$profilesByIndustry = [];
+while ($row = $result->fetch_assoc()) {
+    $industry = $row['industry'] ?? 'Unknown Industry';
+    $profilesByIndustry[$industry][] = $row;
+}
+ksort($profilesByIndustry);
 
 $baseUrl = '/jobseekers/ICS-PROJECT/';
 function getFullFilePath($relativePath) {
     return __DIR__ . '/../../' . $relativePath;
 }
 ?>
-
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Organisation Dashboard</title>
-    <style>
-       body {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    background: #f0f0f0; /* Light Gray */
-    margin: 0;
-    padding: 0;
-    color: #333333; /* Dark Gray text */
-}
+  <meta charset="UTF-8">
+  <title>Organisation Dashboard</title>
+  <link rel="stylesheet" href="org_sidebar.css">
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', sans-serif;
+      background: #f4f6f9;
+    }
 
-.header {
-    background: #003366; /* Navy Blue primary */
-    color: white;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 0;
-    height: 60px; /* fixed height for navbar */
-}
+    .main-content {
+      margin-left: 240px;
+      padding: 30px;
+    }
 
-.header .logo {
-    display: flex;
-    align-items: center;
-    height: 100%;
-    width: 200px; /* adjust as needed */
-    background: white; /* or transparent if logo has background */
-    padding: 5px 15px;
-    box-sizing: border-box;
-}
+    h1, h3 {
+      color: #003366;
+    }
 
-.header .logo img {
-    height: 100%;
-    width: auto;
-    object-fit: contain;
-}
+    .search-bar {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 30px;
+    }
 
-.header nav {
-    display: flex;
-    align-items: center;
-    gap: 20px;
-    padding-right: 30px;
-}
+    .search-bar input, .search-bar select {
+      padding: 10px;
+      font-size: 14px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+    }
 
-.header nav a {
-    color: white;
-    text-decoration: none;
-    font-weight: 600;
-    transition: color 0.3s ease;
-}
+    .search-bar button {
+      padding: 10px 18px;
+      background: #0047AB;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background 0.3s ease;
+    }
 
-.header nav a:hover {
-    color: #ff6600; /* Accent orange on hover */
-}
+    .search-bar button:hover {
+      background: #003366;
+    }
 
-.search-bar {
-    text-align: center;
-    padding: 30px 0 10px;
-}
+    .grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 25px;
+      margin-top: 10px;
+    }
 
-.search-bar input[type="text"] {
-    padding: 10px;
-    width: 300px;
-    border-radius: 4px;
-    border: 1px solid #ccc;
-    font-size: 16px;
-}
+    .profile-card {
+      background: white;
+      border-radius: 10px;
+      width: 320px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+      overflow: hidden;
+    }
 
-.search-bar button {
-    padding: 10px 16px;
-    background: #ff6600; /* Accent orange */
-    color: white;
-    border: none;
-    border-radius: 4px;
-    margin-left: 8px;
-    cursor: pointer;
-    font-weight: bold;
-    transition: background 0.3s ease;
-}
+    .profile-card img {
+      width: 100%;
+      height: 200px;
+      object-fit: cover;
+    }
 
-.search-bar button:hover {
-    background: #d45400; /* Darker orange */
-}
+    .passport-placeholder {
+      background: #ddd;
+      height: 200px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #777;
+    }
 
-h3 {
-    text-align: center;
-    color: #333333;
-}
+    .profile-info {
+      padding: 15px;
+    }
 
-.grid {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 25px;
-    padding: 20px;
-}
+    .profile-info h2 {
+      margin: 0 0 10px;
+      font-size: 18px;
+      color: #003366;
+    }
 
-.profile-card {
-    background: white;
-    border-radius: 10px;
-    width: 320px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-    overflow: hidden;
-    transition: transform 0.2s ease;
-}
+    .profile-info p {
+      margin: 4px 0;
+      font-size: 14px;
+    }
 
-.profile-card:hover {
-    transform: translateY(-5px);
-}
+    .profile-actions {
+      display: flex;
+      gap: 10px;
+      padding: 15px;
+    }
 
-.profile-card img {
-    width: 100%;
-    height: 200px;
-    object-fit: cover;
-    border-bottom: 1px solid #eee;
-}
+    .profile-actions a {
+      flex: 1;
+      background: #0047AB;
+      color: white;
+      text-align: center;
+      padding: 10px;
+      border-radius: 6px;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 14px;
+    }
 
-.profile-info {
-    padding: 15px;
-}
+    .profile-actions a:hover {
+      background: #003366;
+    }
 
-.profile-info h2 {
-    font-size: 18px;
-    color: #003366; /* Navy Blue */
-    margin: 0 0 5px;
-}
-
-.profile-info .name {
-    font-weight: bold;
-    color: #333333;
-}
-
-.profile-info .skills {
-    font-size: 14px;
-    color: #666666;
-    margin-top: 8px;
-}
-
-.profile-actions {
-    padding: 0 15px 15px;
-    display: flex;
-    justify-content: space-between;
-    gap: 10px;
-}
-
-.profile-actions form,
-.profile-actions a {
-    flex: 1;
-}
-
-.profile-actions button,
-.profile-actions a {
-    display: block;
-    padding: 10px;
-    background: #ff6600; /* Accent orange */
-    color: white;
-    text-align: center;
-    border: none;
-    border-radius: 5px;
-    text-decoration: none;
-    font-weight: 600;
-    transition: background 0.3s;
-}
-
-.profile-actions button:hover,
-.profile-actions a:hover {
-    background: #d45400; /* Darker orange */
-}
-
-.passport-placeholder {
-    background: #ddd;
-    height: 200px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: #777;
-}
-</style>
+    .industry-title {
+      margin-top: 40px;
+      border-bottom: 1px solid #ccc;
+      padding-bottom: 5px;
+      font-size: 20px;
+    }
+  </style>
 </head>
 <body>
 
-<div class="header">
-    <div class="logo"><img src="../../assets/logo.png" alt="Logo"></div>
-    <nav>
-        <a href="interests.php">My Interests</a>
-        <a href="interests_sent.php">🤝 Interests Sent</a>
-        <a href="org_notifications.php">📅 Interview Requests</a>
-        <a href="edit_organisation_profile.php">🏢 Organisation Profile</a>
-        <a href="../logout.php">Logout</a>
-    </nav>
-</div>
+<?php include 'org_sidebar.php'; ?>
 
-<form method="GET" class="search-bar">
-    <input type="text" name="search" placeholder="Search Job Seekers..." value="<?= htmlspecialchars($search) ?>">
+<div class="main-content">
+  <h1>Organisation Dashboard</h1>
+
+  <form method="GET" class="search-bar">
+    <input type="text" name="search" placeholder="Search by skills, headline, or experience" value="<?= htmlspecialchars($search) ?>">
+    <select name="experience_level">
+      <option value="">-- Any Experience Level --</option>
+      <option value="junior" <?= $experienceLevel === 'junior' ? 'selected' : '' ?>>Junior</option>
+      <option value="mid" <?= $experienceLevel === 'mid' ? 'selected' : '' ?>>Mid</option>
+      <option value="senior" <?= $experienceLevel === 'senior' ? 'selected' : '' ?>>Senior</option>
+      <option value="expert" <?= $experienceLevel === 'expert' ? 'selected' : '' ?>>Expert</option>
+    </select>
     <button type="submit">Search</button>
-</form>
+  </form>
 
-<h3>Qualified Job Seekers (100% Profile Completion)</h3>
-
-<div class="grid">
-<?php while($row = $result->fetch_assoc()): ?>
-    <div class="profile-card">
-        <?php
-        $passportPath = $row['passport'];
-        $passportFullPath = getFullFilePath($passportPath);
-        if (!empty($passportPath) && file_exists($passportFullPath)) {
-            echo '<img src="' . htmlspecialchars($baseUrl . $passportPath) . '" alt="Passport Photo">';
-        } else {
-            echo '<div class="passport-placeholder">No Photo Available</div>';
-        }
-        ?>
-        <div class="profile-info">
+  <?php foreach ($profilesByIndustry as $industry => $profiles): ?>
+    <h3 class="industry-title"><?= htmlspecialchars($industry) ?></h3>
+    <div class="grid">
+      <?php foreach ($profiles as $row): ?>
+        <div class="profile-card">
+          <?php
+            $passportPath = $row['passport'];
+            $passportFullPath = getFullFilePath($passportPath);
+            if (!empty($passportPath) && file_exists($passportFullPath)) {
+              echo '<img src="' . htmlspecialchars($baseUrl . $passportPath) . '" alt="Passport Photo">';
+            } else {
+              echo '<div class="passport-placeholder">No Photo Available</div>';
+            }
+          ?>
+          <div class="profile-info">
             <h2><?= htmlspecialchars($row['headline']) ?></h2>
-            <p class="name"><?= htmlspecialchars($row['name']) ?></p>
-            <p class="skills"><strong>Skills:</strong> <?= htmlspecialchars($row['skills']) ?></p>
+            <p><strong><?= htmlspecialchars($row['name']) ?></strong></p>
+            <p><strong>Skills:</strong> <?= htmlspecialchars($row['skills']) ?></p>
+          </div>
+          <div class="profile-actions">
+            <a href="show_interest.php?jobseeker_id=<?= (int)$row['id'] ?>">🤝 Interest</a>
+            <a href="view_profile.php?id=<?= (int)$row['id'] ?>" target="_blank">🔍 View</a>
+          </div>
         </div>
-        <div class="profile-actions">
-                <a href="show_interest.php?jobseeker_id=<?= (int)$row['id'] ?>">🤝 Show Interest</a>
-            <a href="view_profile.php?id=<?= (int)$row['id'] ?>" target="_blank">🔍 View Full Profile</a>
-        </div>
+      <?php endforeach; ?>
     </div>
-<?php endwhile; ?>
+  <?php endforeach; ?>
 </div>
 
 </body>
